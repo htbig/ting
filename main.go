@@ -33,6 +33,14 @@ func task(exitChanal chan int) {
 	}
 }
 
+func getCurrentMemoryUsage() uint64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return m.Alloc
+}
+
+var memSlice []byte
+
 func doWork(exitChanal chan int) {
 	file, err := os.OpenFile("test.txt", os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
@@ -40,13 +48,20 @@ func doWork(exitChanal chan int) {
 		return
 	}
 	defer file.Close()
-	var mem runtime.MemStats
-	memx := [11 * 1024 * 1024]byte{}
-	runtime.ReadMemStats(&mem)
+
+	const memSize = 100 * 1024 * 1024
+	memSlice = make([]byte, memSize)
+
+	for i := 0; i < memSize; i++ {
+		memSlice[i] = 1
+	}
+
+	fmt.Printf("use the memory: %v\n", getCurrentMemoryUsage()/(1024*1024))
+
 	count, err := file.WriteString("Hello Golang")
 	if err != nil {
 	}
-	fmt.Println("hello world", memx[0], count, err, mem.Sys/(1024*1024), mem.Alloc, mem.TotalAlloc)
+	fmt.Println("hello world", count, err)
 	go task(exitChanal)
 }
 func main() {
@@ -61,12 +76,14 @@ func main() {
 			doWork(exitChanal)
 			time.Sleep(time.Duration((8*60 - (time.Now().Hour()*60 + time.Now().Minute()))) * 60000000000)
 			exitChanal <- 1
+			memSlice = nil
 		} else if time.Now().Hour() >= 8 && time.Now().Hour() < 16 {
 			doWork(exitChanal)
 			doWork(exitChanal)
 			time.Sleep(time.Duration((16*60 - (time.Now().Hour()*60 + time.Now().Minute()))) * 60000000000)
 			exitChanal <- 1
 			exitChanal <- 2
+			memSlice = nil
 		} else {
 			doWork(exitChanal)
 			doWork(exitChanal)
@@ -76,6 +93,7 @@ func main() {
 			exitChanal <- 1
 			exitChanal <- 2
 			exitChanal <- 3
+			memSlice = nil
 		}
 
 	}
